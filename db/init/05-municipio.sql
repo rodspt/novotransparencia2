@@ -30,3 +30,23 @@ SELECT m.cod_ibge,
 
 CREATE UNIQUE INDEX ON geo.mv_municipio_resumo (cod_ibge);
 CREATE INDEX ON geo.mv_municipio_resumo USING gist (geom);
+
+-- Máscara "só Brasil": mundo menos o contorno do país (união dos municípios), para cobrir
+-- os países vizinhos no mapa base. Subdividida em pedaços pequenos para os tiles saírem rápidos.
+-- Atualizar após importar os municípios: REFRESH MATERIALIZED VIEW geo.mv_brasil_mascara;
+CREATE MATERIALIZED VIEW geo.mv_brasil_mascara AS
+WITH uniao AS (
+    SELECT ST_Union(geom) AS geom FROM geo.municipio
+), brasil AS (
+    -- só os anéis externos: elimina frestas entre municípios vizinhos (o Brasil não tem enclaves)
+    SELECT ST_Transform(ST_Collect(ST_MakePolygon(ST_ExteriorRing(d.geom))), 3857) AS geom
+      FROM uniao, ST_Dump(uniao.geom) d
+)
+SELECT 'mascara'::text AS tipo,
+       ST_Subdivide(ST_Difference(ST_Transform(ST_MakeEnvelope(-180, -85.05, 180, 85.05, 4326), 3857), brasil.geom), 512) AS geom
+  FROM brasil
+UNION ALL
+SELECT 'contorno', ST_Subdivide(ST_Boundary(brasil.geom), 512)
+  FROM brasil;
+
+CREATE INDEX ON geo.mv_brasil_mascara USING gist (geom);

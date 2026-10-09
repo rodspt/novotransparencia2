@@ -66,3 +66,36 @@ BEGIN
     END IF;
     RETURN v_mvt;
 END $$;
+
+CREATE OR REPLACE FUNCTION tiles.sigef(z integer, x integer, y integer, query_params json)
+RETURNS bytea LANGUAGE sql STABLE PARALLEL SAFE AS $$
+    WITH b AS (
+        SELECT ST_TileEnvelope(z, x, y) AS env,
+               ST_Transform(ST_TileEnvelope(z, x, y, margin => 64.0 / 4096), 4674) AS env_4674
+    ), f AS (
+        SELECT s.id,
+               s.qrcode,
+               s.nm_area,
+               st.tx_descricao AS status,
+               na.tx_descricao AS natureza,
+               round(s.area_ha, 2) AS area_ha,
+               ST_AsMVTGeom(ST_Transform(s.geom, 3857), b.env, 4096, 64, true) AS geom
+          FROM geo.sigef s
+          CROSS JOIN b
+          LEFT JOIN geo.sigef_status st ON st.id = s.sigef_status_id
+          LEFT JOIN geo.sigef_natureza na ON na.id = s.sigef_natureza_id
+         WHERE s.geom && b.env_4674
+           AND (query_params->>'uf' IS NULL OR s.uf = upper(query_params->>'uf'))
+    )
+    SELECT ST_AsMVT(f, 'sigef', 4096, 'geom', 'id') FROM f WHERE f.geom IS NOT NULL;
+$$;
+
+CREATE OR REPLACE FUNCTION tiles.brasil_mascara(z integer, x integer, y integer)
+RETURNS bytea LANGUAGE sql STABLE PARALLEL SAFE AS $$
+    WITH b AS (SELECT ST_TileEnvelope(z, x, y) AS env), f AS (
+        SELECT m.tipo, ST_AsMVTGeom(m.geom, b.env, 4096, 64, true) AS geom
+          FROM geo.mv_brasil_mascara m, b
+         WHERE m.geom && b.env
+    )
+    SELECT ST_AsMVT(f, 'brasil_mascara', 4096, 'geom') FROM f WHERE f.geom IS NOT NULL;
+$$;

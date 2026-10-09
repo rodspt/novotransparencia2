@@ -22,4 +22,5 @@ SELECT cd_mun::int, nm_mun, sigla_uf, ST_Multi(ST_CollectionExtract(ST_MakeValid
 DROP TABLE staging.municipio;
 COMMIT;
 REFRESH MATERIALIZED VIEW geo.mv_municipio_resumo;
+REFRESH MATERIALIZED VIEW geo.mv_brasil_mascara;
 SQL

@@ -13,12 +13,23 @@ postgres:
       minzoom: 9
       maxzoom: 22
       bounds: [-74.0, -34.0, -28.0, 6.0]
+    sigef:
+      schema: tiles
+      function: sigef
+      minzoom: 9
+      maxzoom: 22
+      bounds: [-74.0, -34.0, -28.0, 6.0]
     municipio_resumo:
       schema: tiles
       function: municipio_resumo
       minzoom: 0
       maxzoom: 9
       bounds: [-74.0, -34.0, -28.0, 6.0]
+    brasil_mascara:
+      schema: tiles
+      function: brasil_mascara
+      minzoom: 0
+      maxzoom: 22
     foco_queimada:
       schema: tiles
       function: foco_queimada

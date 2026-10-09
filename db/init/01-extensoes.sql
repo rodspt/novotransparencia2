@@ -2,6 +2,9 @@
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- usadas pelo schema dw do banco legado
+CREATE EXTENSION IF NOT EXISTS postgis_raster;
+CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- geo     : tabelas curadas (particionadas), fonte da verdade da aplicação
 -- staging : cargas brutas (ogr2ogr) antes de normalizar e trocar a partição

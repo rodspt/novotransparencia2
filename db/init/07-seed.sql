@@ -1,6 +1,7 @@
 INSERT INTO geo.camada (id, nome, grupo, fonte, tipo_geom, cor, minzoom, maxzoom, tabela, ativo_padrao, ordem) VALUES
     ('municipio_resumo', 'Imóveis CAR por município', 'Fundiário', 'SICAR / IBGE', 'poligono', '#2b8a3e', 0, 9,  NULL,                 true,  10),
     ('sicar',            'Imóveis CAR (SICAR)',       'Fundiário', 'SICAR',        'poligono', '#2b8a3e', 9, 22, 'geo.sicar',          true,  20),
+    ('sigef',            'Parcelas SIGEF',            'Fundiário', 'INCRA/SIGEF',  'poligono', '#5f3dc4', 9, 22, 'geo.sigef',          false, 30),
     ('foco_queimada',    'Focos de queimada',         'Fogo',      'INPE',         'ponto',    '#e8590c', 0, 22, 'geo.foco_queimada',  false, 90);
 
 -- Amostra (DF) enviada como exemplo da estrutura atual.

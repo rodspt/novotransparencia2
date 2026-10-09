@@ -37,12 +37,35 @@ export default function Explorador() {
       style: ESTILO_BASE,
       center: [-52, -14],
       zoom: 3.6,
-      maxBounds: [[-90, -40], [-20, 12]],
+      minZoom: 3,
+      maxBounds: [[-82, -38], [-26, 10]],
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
     map.on("load", () => {
+      // Máscara: cobre os outros países (mapa base inteiro, inclusive rótulos); nossas camadas ficam por cima.
+      map.addSource("brasil_mascara", {
+        type: "vector",
+        tiles: [`${window.location.origin}/tiles/brasil_mascara/{z}/{x}/{y}?v=1`],
+        maxzoom: 14,
+      });
+      map.addLayer({
+        id: "brasil-mascara",
+        type: "fill",
+        source: "brasil_mascara",
+        "source-layer": "brasil_mascara",
+        filter: ["==", ["get", "tipo"], "mascara"],
+        paint: { "fill-color": "rgb(242,243,240)", "fill-antialias": false },
+      });
+      map.addLayer({
+        id: "brasil-contorno",
+        type: "line",
+        source: "brasil_mascara",
+        "source-layer": "brasil_mascara",
+        filter: ["==", ["get", "tipo"], "contorno"],
+        paint: { "line-color": "#868e96", "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.8, 10, 2] },
+      });
       map.addSource("destaque", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({ id: "destaque", type: "line", source: "destaque", paint: { "line-color": "#f03e3e", "line-width": 3 } });
       setMapaPronto(true);
