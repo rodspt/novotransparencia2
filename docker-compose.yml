@@ -1,0 +1,92 @@
+name: novotransparencia
+
+# Fluxo:  navegador -> gateway (nginx :8080)
+#           /          -> web    (Next.js)
+#           /api/      -> api    (FastAPI: atributos, busca, sobreposições)
+#           /tiles/    -> martin (vector tiles MVT gerados no PostGIS) com cache em disco no nginx
+#         api, martin -> db (PostgreSQL 17 + PostGIS 3.5)
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Ajuste conforme a RAM do servidor (valores abaixo pensados para ~32 GB).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-8GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-24GB}
+      - -c
+      - work_mem=64MB
+      - -c
+      - maintenance_work_mem=2GB
+      - -c
+      - max_parallel_workers_per_gather=4
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - max_wal_size=8GB
+      - -c
+      - jit=off
+    shm_size: 2gb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  martin:
+    image: ghcr.io/maplibre/martin:1.16.1
+    restart: unless-stopped
+    command: ["--config", "/config/martin.yaml"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - ./martin/martin.yaml:/config/martin.yaml:ro
+      - ./data/pmtiles:/data/pmtiles:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      EXPOR_DADOS_PESSOAIS: ${EXPOR_DADOS_PESSOAIS:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  gateway:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - tilecache:/var/cache/nginx/tiles
+    depends_on:
+      - web
+      - api
+      - martin
+
+volumes:
+  pgdata:
+  tilecache:

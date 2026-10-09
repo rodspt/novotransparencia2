@@ -1,0 +1,33 @@
+listen_addresses: '0.0.0.0:3000'
+route_prefix: /tiles
+
+postgres:
+  connection_string: ${DATABASE_URL}
+  pool_size: 40
+  # Publica apenas o que está listado abaixo (nada de expor tabelas por engano).
+  auto_publish: false
+  functions:
+    sicar:
+      schema: tiles
+      function: sicar
+      minzoom: 9
+      maxzoom: 22
+      bounds: [-74.0, -34.0, -28.0, 6.0]
+    municipio_resumo:
+      schema: tiles
+      function: municipio_resumo
+      minzoom: 0
+      maxzoom: 9
+      bounds: [-74.0, -34.0, -28.0, 6.0]
+    foco_queimada:
+      schema: tiles
+      function: foco_queimada
+      minzoom: 0
+      maxzoom: 22
+      bounds: [-74.0, -34.0, -28.0, 6.0]
+
+# Camadas estáticas/pesadas pré-geradas com tippecanoe (ver etl/gerar_pmtiles.sh).
+# Cada arquivo data/pmtiles/<nome>.pmtiles vira /tiles/<nome>/{z}/{x}/{y}.
+pmtiles:
+  paths:
+    - /data/pmtiles

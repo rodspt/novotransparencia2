@@ -1,0 +1,44 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #212529; }
+
+.explorador { display: flex; height: 100dvh; }
+.mapa { flex: 1; min-width: 0; }
+
+.painel { width: 340px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #dee2e6; background: #fff;
+  padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.painel h1 { font-size: 18px; margin: 0; }
+.painel h2 { font-size: 15px; margin: 0 0 8px; }
+.painel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #868e96; margin: 12px 0 6px; }
+.painel footer { margin-top: auto; }
+.sub { color: #868e96; font-size: 12px; margin: 2px 0 0; }
+.mono { font-family: ui-monospace, monospace; font-size: 11px; word-break: break-all; }
+.erro { color: #c92a2a; font-size: 13px; margin: 0; }
+
+.busca { width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
+.resultados { list-style: none; padding: 0; margin: 4px 0 0; border: 1px solid #dee2e6; border-radius: 6px; }
+.resultados button { all: unset; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px; cursor: pointer; font-size: 13px; }
+.resultados li + li { border-top: 1px solid #f1f3f5; }
+.resultados button:hover { background: #f8f9fa; }
+.resultados span { color: #868e96; font-size: 12px; }
+
+.grupo label { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; cursor: pointer; }
+.grupo label.fora-zoom { color: #adb5bd; }
+.grupo small { color: #adb5bd; }
+.amostra { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; opacity: .8; }
+.periodo { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 4px 0 0 22px; flex-wrap: wrap; }
+.periodo input { font-size: 12px; padding: 2px 4px; }
+
+.titulo-secao { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.fechar { border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: #868e96; }
+.imovel dl { display: grid; grid-template-columns: 90px 1fr; gap: 6px 8px; font-size: 13px; margin: 0; }
+.imovel dt { color: #868e96; }
+.imovel dd { margin: 0; }
+.sobreposicoes { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.sobreposicoes li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f3f5; }
+.sobreposicoes li.alerta { color: #c92a2a; font-weight: 600; }
+.link { border: 0; background: none; color: #1971c2; cursor: pointer; padding: 0; margin-top: 12px; font-size: 13px; }
+
+@media (max-width: 700px) {
+  .explorador { flex-direction: column-reverse; }
+  .painel { width: 100%; height: 45dvh; border-right: 0; border-top: 1px solid #dee2e6; }
+}
