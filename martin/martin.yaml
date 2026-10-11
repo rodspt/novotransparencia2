@@ -6,28 +6,121 @@ postgres:
   pool_size: 40
   # Publica apenas o que está listado abaixo (nada de expor tabelas por engano).
   auto_publish: false
+  # Gerado a partir de geo.camada (zoom mínimo real é controlado pela função e pelo mapa).
   functions:
-    sicar:
-      schema: tiles
-      function: sicar
-      minzoom: 9
-      maxzoom: 22
-      bounds: [-74.0, -34.0, -28.0, 6.0]
-    sigef:
-      schema: tiles
-      function: sigef
-      minzoom: 9
-      maxzoom: 22
-      bounds: [-74.0, -34.0, -28.0, 6.0]
     municipio_resumo:
       schema: tiles
       function: municipio_resumo
       minzoom: 0
-      maxzoom: 9
-      bounds: [-74.0, -34.0, -28.0, 6.0]
-    brasil_mascara:
+      maxzoom: 22
+    uf_limite:
       schema: tiles
-      function: brasil_mascara
+      function: uf_limite
+      minzoom: 0
+      maxzoom: 22
+    bioma:
+      schema: tiles
+      function: bioma
+      minzoom: 0
+      maxzoom: 22
+    faixa_fronteira:
+      schema: tiles
+      function: faixa_fronteira
+      minzoom: 0
+      maxzoom: 22
+    sicar:
+      schema: tiles
+      function: sicar
+      minzoom: 0
+      maxzoom: 22
+    sigef:
+      schema: tiles
+      function: sigef
+      minzoom: 0
+      maxzoom: 22
+    assentamento:
+      schema: tiles
+      function: assentamento
+      minzoom: 0
+      maxzoom: 22
+    area_urbana:
+      schema: tiles
+      function: area_urbana
+      minzoom: 0
+      maxzoom: 22
+    terra_indigena:
+      schema: tiles
+      function: terra_indigena
+      minzoom: 0
+      maxzoom: 22
+    quilombola:
+      schema: tiles
+      function: quilombola
+      minzoom: 0
+      maxzoom: 22
+    floresta_publica:
+      schema: tiles
+      function: floresta_publica
+      minzoom: 0
+      maxzoom: 22
+    area_militar:
+      schema: tiles
+      function: area_militar
+      minzoom: 0
+      maxzoom: 22
+    deter:
+      schema: tiles
+      function: deter
+      minzoom: 0
+      maxzoom: 22
+    embargo_ibama:
+      schema: tiles
+      function: embargo_ibama
+      minzoom: 0
+      maxzoom: 22
+    embargo_icmbio:
+      schema: tiles
+      function: embargo_icmbio
+      minzoom: 0
+      maxzoom: 22
+    embargo_estadual:
+      schema: tiles
+      function: embargo_estadual
+      minzoom: 0
+      maxzoom: 22
+    minerio:
+      schema: tiles
+      function: minerio
+      minzoom: 0
+      maxzoom: 22
+    reserva_garimpeira:
+      schema: tiles
+      function: reserva_garimpeira
+      minzoom: 0
+      maxzoom: 22
+    uso_solo:
+      schema: tiles
+      function: uso_solo
+      minzoom: 0
+      maxzoom: 22
+    qualidade_pastagem:
+      schema: tiles
+      function: qualidade_pastagem
+      minzoom: 0
+      maxzoom: 22
+    sicor_gleba:
+      schema: tiles
+      function: sicor_gleba
+      minzoom: 0
+      maxzoom: 22
+    rodovia:
+      schema: tiles
+      function: rodovia
+      minzoom: 0
+      maxzoom: 22
+    censo_2022:
+      schema: tiles
+      function: censo_2022
       minzoom: 0
       maxzoom: 22
     foco_queimada:
@@ -35,7 +128,11 @@ postgres:
       function: foco_queimada
       minzoom: 0
       maxzoom: 22
-      bounds: [-74.0, -34.0, -28.0, 6.0]
+    brasil_mascara:
+      schema: tiles
+      function: brasil_mascara
+      minzoom: 0
+      maxzoom: 22
 
 # Camadas estáticas/pesadas pré-geradas com tippecanoe (ver etl/gerar_pmtiles.sh).
 # Cada arquivo data/pmtiles/<nome>.pmtiles vira /tiles/<nome>/{z}/{x}/{y}.

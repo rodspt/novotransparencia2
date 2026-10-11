@@ -42,7 +42,8 @@ export type Imovel = {
   bbox: Bbox;
 };
 
-export type Sobreposicao = { camada: string; nome: string; qtd: number; area_ha: number | null };
+// qtd/area_ha nulos = cálculo excedeu o tempo limite na API
+export type Sobreposicao = { camada: string; nome: string; qtd: number | null; area_ha: number | null };
 
 async function get<T>(caminho: string): Promise<T> {
   const r = await fetch(`/api${caminho}`);

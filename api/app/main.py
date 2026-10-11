@@ -37,17 +37,31 @@ def mascarar(valor: str | None) -> str | None:
     return "***"
 
 
-def uf_do_codigo(cod_imovel: str) -> str:
-    # O código do CAR começa pela UF: filtrar por ela faz o Postgres ler só uma partição.
-    return cod_imovel[:2].upper()
+# Imóvel do CAR no dw: atributos em dm_sicar, geometria em dm_sicar_geo (ambas particionadas por uf_id).
+IMOVEL_SQL = """
+    SELECT s.id, s.cod_imovel, st.tx_descricao AS status_imovel, s.dat_criacao, s.area_ha::float8 AS area,
+           co.tx_descricao AS condicao, u.sg_uf AS uf, m.nm_municipio AS municipio, s.municipio_id AS cod_municipio_ibge,
+           s.modulo_fiscal::float8 AS m_fiscal, ti.tx_descricao AS tipo_imovel, s.nome_imovel,
+           s.arr_cpf, s.arr_nome, g.geom
+      FROM dw.dm_sicar s
+      JOIN dw.dm_uf u ON u.id = s.uf_id
+      LEFT JOIN dw.dm_municipio m ON m.id = s.municipio_id
+      LEFT JOIN dw.ta_sicar_status st ON st.id = s.sicar_status_id
+      LEFT JOIN dw.ta_sicar_condicao co ON co.id = s.sicar_condicao_id
+      LEFT JOIN dw.ta_sicar_tipo_imovel ti ON ti.id = s.sicar_tipo_imovel_id
+      CROSS JOIN LATERAL (SELECT ST_Collect(geom) AS geom FROM dw.dm_sicar_geo
+                           WHERE uf_id = s.uf_id AND sicar_id = s.id) g
+"""
 
 
-async def uf_do_imovel(con: asyncpg.Connection, cod_imovel: str) -> str | None:
-    """UF (partição) do imóvel. Imóveis de divisa têm a UF do código diferente da UF de localização."""
-    uf = uf_do_codigo(cod_imovel)
-    if await con.fetchval("SELECT true FROM geo.sicar WHERE uf = $1 AND cod_imovel = $2", uf, cod_imovel):
-        return uf
-    return await con.fetchval("SELECT uf FROM geo.sicar WHERE cod_imovel = $1 LIMIT 1", cod_imovel)
+async def uf_do_imovel(con: asyncpg.Connection, cod_imovel: str) -> int | None:
+    """uf_id (partição) do imóvel. O código começa pela sigla da UF; imóveis de divisa podem estar em outra."""
+    uf_id = await con.fetchval(
+        "SELECT s.uf_id FROM dw.dm_sicar s JOIN dw.dm_uf u ON u.id = s.uf_id "
+        "WHERE u.sg_uf = $1 AND s.cod_imovel = $2 LIMIT 1", cod_imovel[:2].upper(), cod_imovel)
+    if uf_id is None:
+        uf_id = await con.fetchval("SELECT uf_id FROM dw.dm_sicar WHERE cod_imovel = $1 LIMIT 1", cod_imovel)
+    return uf_id
 
 
 @app.get("/saude")
@@ -65,53 +79,45 @@ async def camadas():
     return [dict(r) for r in rows]
 
 
+def _resultado_busca(r) -> dict:
+    return {**{k: r[k] for k in ("cod_imovel", "nome_imovel", "municipio", "uf", "area")},
+            "bbox": [r["xmin"], r["ymin"], r["xmax"], r["ymax"]]}
+
+
 @app.get("/imoveis/busca")
 async def buscar_imoveis(q: str = Query(min_length=3), limite: int = Query(10, le=50)):
     termo = q.strip()
+    base = f"""SELECT i.cod_imovel, i.nome_imovel, i.municipio, i.uf, i.area,
+                      ST_XMin(i.geom) AS xmin, ST_YMin(i.geom) AS ymin, ST_XMax(i.geom) AS xmax, ST_YMax(i.geom) AS ymax
+                 FROM ({IMOVEL_SQL} WHERE {{filtro}} LIMIT $2) i"""
     if RE_COD_IMOVEL.match(termo.upper()):
-        sql = """SELECT cod_imovel, nome_imovel, municipio, uf, area,
-                        ST_XMin(geom) AS xmin, ST_YMin(geom) AS ymin, ST_XMax(geom) AS xmax, ST_YMax(geom) AS ymax
-                   FROM geo.sicar
-                  WHERE {filtro} cod_imovel LIKE $1 || '%'
-                  ORDER BY cod_imovel LIMIT $2"""
-        rows = await pool.fetch(sql.format(filtro="uf = $3 AND"), termo.upper(), limite, uf_do_codigo(termo))
+        filtro = "u.sg_uf = $3 AND s.cod_imovel LIKE $1 || '%'"  # $3 = UF do código: lê só uma partição
+        rows = await pool.fetch(base.format(filtro=filtro), termo.upper(), limite, termo[:2].upper())
         if not rows:
-            rows = await pool.fetch(sql.format(filtro=""), termo.upper(), limite)
+            rows = await pool.fetch(base.format(filtro="s.cod_imovel LIKE $1 || '%'"), termo.upper(), limite)
     else:
-        rows = await pool.fetch(
-            """SELECT cod_imovel, nome_imovel, municipio, uf, area,
-                      ST_XMin(geom) AS xmin, ST_YMin(geom) AS ymin, ST_XMax(geom) AS xmax, ST_YMax(geom) AS ymax
-                 FROM geo.sicar
-                WHERE nome_imovel ILIKE '%' || $1 || '%'
-                ORDER BY similarity(nome_imovel, $1) DESC LIMIT $2""",
-            termo, limite,
-        )
-    return [
-        {**{k: r[k] for k in ("cod_imovel", "nome_imovel", "municipio", "uf", "area")},
-         "bbox": [r["xmin"], r["ymin"], r["xmax"], r["ymax"]]}
-        for r in rows
-    ]
+        rows = await pool.fetch(base.format(filtro="s.nome_imovel ILIKE '%' || $1 || '%'"), termo, limite)
+    return [_resultado_busca(r) for r in rows]
 
 
 @app.get("/imoveis/{cod_imovel}")
 async def obter_imovel(cod_imovel: str):
     async with pool.acquire() as con:
-        uf = await uf_do_imovel(con, cod_imovel)
-        if uf is None:
+        uf_id = await uf_do_imovel(con, cod_imovel)
+        if uf_id is None:
             raise HTTPException(404, "Imóvel não encontrado")
         r = await con.fetchrow(
-            """SELECT id, cod_imovel, status_imovel, dat_criacao, area, condicao, uf, municipio,
-                      cod_municipio_ibge, m_fiscal, tipo_imovel, nome_imovel,
-                      cpf_cnpj_proprietario, nome_proprietario, dt_inclusao,
-                      ST_AsGeoJSON(geom, 6)::text AS geojson,
-                      ST_XMin(geom) AS xmin, ST_YMin(geom) AS ymin, ST_XMax(geom) AS xmax, ST_YMax(geom) AS ymax
-                 FROM geo.sicar WHERE uf = $1 AND cod_imovel = $2""",
-            uf, cod_imovel,
+            f"""SELECT i.*, ST_AsGeoJSON(i.geom, 6)::text AS geojson,
+                       ST_XMin(i.geom) AS xmin, ST_YMin(i.geom) AS ymin, ST_XMax(i.geom) AS xmax, ST_YMax(i.geom) AS ymax
+                  FROM ({IMOVEL_SQL} WHERE s.uf_id = $1 AND s.cod_imovel = $2 LIMIT 1) i""",
+            uf_id, cod_imovel,
         )
     imovel = dict(r)
-    imovel["cpf_cnpj_proprietario"] = mascarar(imovel["cpf_cnpj_proprietario"])
-    if not EXPOR_DADOS_PESSOAIS:
-        imovel["nome_proprietario"] = None
+    imovel.pop("geom")
+    cpfs = [mascarar(c) for c in (imovel.pop("arr_cpf") or []) if c]
+    nomes = imovel.pop("arr_nome") or []
+    imovel["cpf_cnpj_proprietario"] = ", ".join(cpfs) or None
+    imovel["nome_proprietario"] = (", ".join(n for n in nomes if n) or None) if EXPOR_DADOS_PESSOAIS else None
     imovel["geometria"] = json.loads(imovel.pop("geojson"))
     imovel["bbox"] = [imovel.pop(k) for k in ("xmin", "ymin", "xmax", "ymax")]
     return imovel
@@ -121,8 +127,8 @@ async def obter_imovel(cod_imovel: str):
 async def sobreposicoes(cod_imovel: str):
     """Cruza o imóvel com todas as camadas do catálogo marcadas como cruzáveis."""
     async with pool.acquire() as con:
-        uf = await uf_do_imovel(con, cod_imovel)
-        if uf is None:
+        uf_id = await uf_do_imovel(con, cod_imovel)
+        if uf_id is None:
             raise HTTPException(404, "Imóvel não encontrado")
         camadas = await con.fetch(
             "SELECT id, nome, tipo_geom, tabela::text AS tabela FROM geo.camada "
@@ -135,12 +141,20 @@ async def sobreposicoes(cod_imovel: str):
                 "NULL::float8" if c["tipo_geom"] == "ponto"
                 else "sum(ST_Area(ST_Intersection(t.geom, i.geom)::geography)) / 10000"
             )
-            r = await con.fetchrow(
-                f"""SELECT count(*) AS qtd, {area} AS area_ha
-                      FROM {c["tabela"]} t,
-                           (SELECT geom FROM geo.sicar WHERE uf = $1 AND cod_imovel = $2) i
-                     WHERE t.geom && i.geom AND ST_Intersects(t.geom, i.geom)""",
-                uf, cod_imovel,
-            )
-            resultado.append({"camada": c["id"], "nome": c["nome"], "qtd": r["qtd"], "area_ha": r["area_ha"]})
+            try:
+                async with con.transaction():
+                    # camadas com polígonos enormes (uso do solo, pastagem) não podem travar o painel
+                    await con.execute("SET LOCAL statement_timeout = '15s'")
+                    r = await con.fetchrow(
+                        f"""SELECT count(*) AS qtd, {area} AS area_ha
+                              FROM {c["tabela"]} t,
+                                   (SELECT ST_Collect(g.geom) AS geom
+                                      FROM dw.dm_sicar s JOIN dw.dm_sicar_geo g ON g.uf_id = s.uf_id AND g.sicar_id = s.id
+                                     WHERE s.uf_id = $1 AND s.cod_imovel = $2) i
+                             WHERE t.geom && i.geom AND ST_Intersects(t.geom, i.geom)""",
+                        uf_id, cod_imovel,
+                    )
+                resultado.append({"camada": c["id"], "nome": c["nome"], "qtd": r["qtd"], "area_ha": r["area_ha"]})
+            except asyncpg.QueryCanceledError:
+                resultado.append({"camada": c["id"], "nome": c["nome"], "qtd": None, "area_ha": None})
     return resultado
